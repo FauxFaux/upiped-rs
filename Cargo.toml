@@ -1,0 +1,14 @@
+[package]
+name = "upiped-rs"
+version = "0.1.0"
+authors = ["Chris West (Faux) <git@goeswhere.com>"]
+
+[dependencies]
+clap = "2"
+failure = "0.1"
+mio = "0.6"
+
+[dependencies.x25519-dalek]
+# https://github.com/dalek-cryptography/x25519-dalek 0.2 + rand=0.5 support
+git = "https://github.com/mcginty/x25519-dalek"
+rev = "715208e0eba9994799adb674629ec45dcaa9348e"
