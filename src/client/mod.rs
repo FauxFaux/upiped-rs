@@ -71,13 +71,25 @@ pub fn serve() -> Result<(), Error> {
                     }
 
                     if event.readiness().is_writable() {
+                        // So much BORROW CHECKER indentation
                         while !incom.buf.is_empty() {
                             {
                                 let reading = &mut incom.buf[0];
-                                while let Some(byte) = reading.pop_front() {
-                                    if incom.tcp.write(&[byte]).map_non_block()?.is_none() {
-                                        continue 'events;
-                                    }
+                                while !reading.is_empty() {
+                                    let written = {
+                                        let (start, end) = reading.as_slices();
+                                        let slice = if start.is_empty() { end } else { start };
+
+                                        incom.tcp.write(slice).map_non_block()?
+                                    };
+
+                                    match written {
+                                        Some(consumed) => {
+                                            assert_ne!(consumed, 0);
+                                            let _ = reading.drain(..consumed);
+                                        }
+                                        None => continue 'events,
+                                    };
                                 }
                             }
                             incom.buf.pop_front();
