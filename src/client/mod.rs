@@ -59,39 +59,15 @@ pub fn serve() -> Result<(), Error> {
                     let incom = &mut streams[token];
 
                     if event.readiness().is_readable() {
-                        let mut found = VecDeque::new();
-                        let mut buf = [0u8; 16];
-                        loop {
-                            match incom.tcp.read(&mut buf).map_non_block()? {
-                                Some(bytes) => found.extend(&buf[..bytes]),
-                                None => break,
-                            }
+                        let found = read_until_blocks(&incom.tcp)?;
+                        if !found.is_empty() {
+                            incom.buf.push_back(found);
                         }
-                        incom.buf.push_back(found);
                     }
 
                     if event.readiness().is_writable() {
-                        // So much BORROW CHECKER indentation
                         while !incom.buf.is_empty() {
-                            {
-                                let reading = &mut incom.buf[0];
-                                while !reading.is_empty() {
-                                    let written = {
-                                        let (start, end) = reading.as_slices();
-                                        let slice = if start.is_empty() { end } else { start };
-
-                                        incom.tcp.write(slice).map_non_block()?
-                                    };
-
-                                    match written {
-                                        Some(consumed) => {
-                                            assert_ne!(consumed, 0);
-                                            let _ = reading.drain(..consumed);
-                                        }
-                                        None => continue 'events,
-                                    };
-                                }
-                            }
+                            drain_some_writeable(&mut incom.buf[0], &incom.tcp)?;
                             incom.buf.pop_front();
                         }
                     }
@@ -100,6 +76,35 @@ pub fn serve() -> Result<(), Error> {
         }
     }
 
+    Ok(())
+}
+
+fn read_until_blocks<R: Read>(mut from: R) -> Result<VecDeque<u8>, Error> {
+    let mut found = VecDeque::new();
+    let mut buf = [0u8; 256];
+    while let Some(bytes) = from.read(&mut buf).map_non_block()? {
+        found.extend(&buf[..bytes]);
+    }
+    Ok(found)
+}
+
+fn drain_some_writeable<W: Write>(reading: &mut VecDeque<u8>, mut into: W) -> Result<(), Error> {
+    while !reading.is_empty() {
+        let written = {
+            let (start, end) = reading.as_slices();
+            let slice = if start.is_empty() { end } else { start };
+
+            into.write(slice).map_non_block()?
+        };
+
+        match written {
+            Some(consumed) => {
+                assert_ne!(consumed, 0);
+                let _ = reading.drain(..consumed);
+            }
+            None => break,
+        };
+    }
     Ok(())
 }
 
