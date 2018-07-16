@@ -61,30 +61,12 @@ pub fn serve() -> Result<(), Error> {
                     next_token += 1;
                 }
                 Token(token) => {
-                    let mut eof = false;
-                    {
-                        let incom = streams
+                    if echo_worker(
+                        streams
                             .get_mut(&token)
-                            .ok_or_else(|| format_err!("wakeup for invalid token"))?;
-
-                        if event.readiness().is_readable() {
-                            match read_until_blocks(&incom.tcp)? {
-                                Some(ref buf) if buf.is_empty() => (),
-                                Some(found) => incom.buf.push_back(found),
-                                None => {
-                                    eof = true;
-                                }
-                            }
-                        }
-
-                        if event.readiness().is_writable() {
-                            while !incom.buf.is_empty() {
-                                drain_some_writeable(&mut incom.buf[0], &incom.tcp)?;
-                                incom.buf.pop_front();
-                            }
-                        }
-                    }
-                    if eof {
+                            .ok_or_else(|| format_err!("wakeup for invalid token"))?,
+                        &event.readiness(),
+                    )? {
                         streams.remove(&token);
                     }
                 }
@@ -93,6 +75,29 @@ pub fn serve() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn echo_worker(incom: &mut Incoming, readiness: &mio::Ready) -> Result<bool, Error> {
+    let mut eof = false;
+
+    if readiness.is_readable() {
+        match read_until_blocks(&incom.tcp)? {
+            Some(ref buf) if buf.is_empty() => (),
+            Some(found) => incom.buf.push_back(found),
+            None => {
+                eof = true;
+            }
+        }
+    }
+
+    if readiness.is_writable() {
+        while !incom.buf.is_empty() {
+            drain_some_writeable(&mut incom.buf[0], &incom.tcp)?;
+            incom.buf.pop_front();
+        }
+    }
+
+    Ok(eof)
 }
 
 /// `None` on EOF
