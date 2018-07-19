@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use std::net;
 
 use failure::Error;
 use mio;
@@ -13,6 +14,7 @@ use mio::Token;
 struct Incoming {
     tcp: TcpStream,
     buf: VecDeque<VecDeque<u8>>,
+    addr: net::SocketAddr,
 }
 
 macro_rules! continue_if_blocking {
@@ -42,6 +44,8 @@ pub fn serve() -> Result<(), Error> {
     let mut streams = HashMap::new();
     let mut next_token = 1;
 
+    info!("listening");
+
     loop {
         poll.poll(&mut events, None)?;
 
@@ -56,8 +60,10 @@ pub fn serve() -> Result<(), Error> {
                         Incoming {
                             tcp: stream,
                             buf: VecDeque::new(),
+                            addr,
                         },
                     );
+                    info!("{}: accepted connection from {:?}", next_token, addr);
                     next_token += 1;
                 }
                 Token(token) => {
@@ -67,6 +73,7 @@ pub fn serve() -> Result<(), Error> {
                             .ok_or_else(|| format_err!("wakeup for invalid token"))?,
                         &event.readiness(),
                     )? {
+                        info!("{}: disconnected", token);
                         streams.remove(&token);
                     }
                 }

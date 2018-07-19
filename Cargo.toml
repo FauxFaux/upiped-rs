@@ -6,7 +6,9 @@ authors = ["Chris West (Faux) <git@goeswhere.com>"]
 [dependencies]
 clap = "2"
 failure = "0.1"
+log = "0.4"
 mio = "0.6"
+pretty_env_logger = "0.2"
 
 [dependencies.x25519-dalek]
 # https://github.com/dalek-cryptography/x25519-dalek 0.2 + rand=0.5 support
