@@ -4,13 +4,21 @@ version = "0.1.0"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
 [dependencies]
+byteorder = "1"
+cast = "0.2"
+chacha20-poly1305-aead = "0.1"
 clap = "2"
 failure = "0.1"
 log = "0.4"
 mio = "0.6"
+more-asserts = "0.2"
 pretty_env_logger = "0.2"
+rand = "0.5"
 
 [dependencies.x25519-dalek]
 # https://github.com/dalek-cryptography/x25519-dalek 0.2 + rand=0.5 support
 git = "https://github.com/mcginty/x25519-dalek"
 rev = "715208e0eba9994799adb674629ec45dcaa9348e"
+
+[profile.release]
+lto = true
