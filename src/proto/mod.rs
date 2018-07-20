@@ -7,6 +7,9 @@
 // 16 bytes:  tag
 // 508 - 12 - 16 - 4 = 476
 
+use std::collections::HashMap;
+use std::time::Instant;
+
 use byteorder::ByteOrder;
 use cast::u8;
 use chacha20_poly1305_aead as cha;
@@ -25,8 +28,29 @@ type KeyId = u32;
 const PLAINTEXT_LEN: usize = 476;
 const MAX_USER_DATA: usize = PLAINTEXT_LEN - 2;
 
-fn pack(key_id: KeyId, data: &[u8]) -> Result<[u8; MTU], Error> {
+type Key = [u8; 32];
+
+struct KeySlot {
+    key: Key,
+    expires: Instant,
+}
+
+type Keys = HashMap<KeyId, KeyPotato>;
+
+// is this just a Vec with position zero being special?
+struct KeyPotato {
+    active: Option<KeySlot>,
+    accepted: Vec<KeySlot>,
+}
+
+fn pack(key_id: KeyId, keys: &mut Keys, data: &[u8]) -> Result<[u8; MTU], Error> {
     ensure!(data.len() <= MAX_USER_DATA, "too much user data");
+
+    let slot = keys
+        .get(&key_id)
+        .ok_or_else(|| format_err!("request for unrecognised key id"))?
+        .active
+        .ok_or_else(|| format_err!("potato has no active key"))?;
 
     let mut packet = [0u8; MTU];
     ::byteorder::BigEndian::write_u32(&mut packet, key_id);
