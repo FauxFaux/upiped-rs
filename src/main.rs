@@ -5,6 +5,8 @@ extern crate chacha20_poly1305_aead;
 extern crate failure;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate maplit;
 extern crate mio;
 #[macro_use]
 extern crate more_asserts;

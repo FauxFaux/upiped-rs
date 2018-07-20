@@ -8,7 +8,6 @@
 // 508 - 12 - 16 - 4 = 476
 
 use std::collections::HashMap;
-use std::time::Instant;
 
 use byteorder::ByteOrder;
 use cast::u8;
@@ -30,27 +29,14 @@ const MAX_USER_DATA: usize = PLAINTEXT_LEN - 2;
 
 type Key = [u8; 32];
 
-struct KeySlot {
-    key: Key,
-    expires: Instant,
-}
+type Keys = HashMap<KeyId, Key>;
 
-type Keys = HashMap<KeyId, KeyPotato>;
-
-// is this just a Vec with position zero being special?
-struct KeyPotato {
-    active: Option<KeySlot>,
-    accepted: Vec<KeySlot>,
-}
-
-fn pack(key_id: KeyId, keys: &mut Keys, data: &[u8]) -> Result<[u8; MTU], Error> {
+fn pack(key_id: KeyId, keys: &Keys, data: &[u8]) -> Result<[u8; MTU], Error> {
     ensure!(data.len() <= MAX_USER_DATA, "too much user data");
 
-    let slot = keys
+    let key = keys
         .get(&key_id)
-        .ok_or_else(|| format_err!("request for unrecognised key id"))?
-        .active
-        .ok_or_else(|| format_err!("potato has no active key"))?;
+        .ok_or_else(|| format_err!("request for unrecognised key id"))?;
 
     let mut packet = [0u8; MTU];
     ::byteorder::BigEndian::write_u32(&mut packet, key_id);
@@ -68,13 +54,7 @@ fn pack(key_id: KeyId, keys: &mut Keys, data: &[u8]) -> Result<[u8; MTU], Error>
     rng.fill_bytes(&mut plaintext[2..padding_required - 2]);
     plaintext[padding_required..].copy_from_slice(data);
 
-    let tag = cha::encrypt(
-        &[0u8; 32],
-        &nonce,
-        &[],
-        &plaintext,
-        &mut &mut packet[12 + 4..],
-    )?;
+    let tag = cha::encrypt(key, &nonce, &[], &plaintext, &mut &mut packet[12 + 4..])?;
     packet[12 + 4 + PLAINTEXT_LEN..].copy_from_slice(&tag);
 
     Ok(packet)
@@ -95,10 +75,13 @@ fn write_opcode(into: &mut [u8], code: OpCode, frame_len: usize) -> Result<(), E
 #[cfg(test)]
 mod tests {
     use super::pack;
-    use super::KeyId;
+    use super::Keys;
 
     #[test]
     fn smoke() {
-        println!("{:?}", pack(0, &[]).unwrap().to_vec());
+        let keys: Keys = hashmap! {
+            0 => [0u8; 32],
+        };
+        println!("{:?}", pack(0, &keys, &[]).unwrap().to_vec());
     }
 }
